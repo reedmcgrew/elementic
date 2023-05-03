@@ -30,11 +30,12 @@ local character = {
 
 local boss_start_position_x = 7*8
 local boss_start_position_y = 9*8
+local boss_angry_sprite = 60
+local boss_impaired_sprite = 17
 local boss = {
     x = boss_start_position_x, -- initial x position
     y = boss_start_position_y, -- initial y position
-    sprite = 60, -- sprite index for the normal face
-    frowny_sprite = 17, -- sprite index for the frowny face
+    sprite = boss_angry_sprite, -- start with angry sprite
     health = 3,
     invulnerable = false,
     defeated = false,
@@ -188,13 +189,14 @@ end
 
 function vulnerability(boss)
     -- change the boss's sprite to the frowny face.
-    boss.sprite = boss.frowny_sprite
+    boss.sprite = boss_impaired_sprite
 
     -- increment the vulnerability_timer and check if the invulnerability period is over.
     boss.vulnerability_timer = boss.vulnerability_timer + 1
     if boss.vulnerability_timer >= 180 then -- 3 seconds * 60 frames per second
         boss.vulnerability_timer = 0
         boss.invulnerable = false
+        boss.sprite = boss_angry_sprite
         boss.state = "holding_pattern"
     end
 end
@@ -205,7 +207,16 @@ function check_boss_collision()
         return
     end
 
-    if character.y + 1 == boss.y and character.x == boss.x then
+    local char_pixel_x = character.x + 5
+    local char_bottom_edge = character.y + 8
+
+    local boss_left_edge = boss.x
+    local boss_right_edge = boss.x + 7
+    local boss_top_edge = boss.y
+
+    if char_bottom_edge == boss_top_edge
+            and char_pixel_x >= boss_left_edge
+            and char_pixel_x <= boss_right_edge then
         boss.health = boss.health - 1
         boss.invulnerable = true
         boss.state = "vulnerability"
@@ -215,6 +226,7 @@ function check_boss_collision()
         end
     end
 end
+
 
 function update_boss()
     if boss.state == "holding_pattern" then
