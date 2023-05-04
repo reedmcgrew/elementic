@@ -1,10 +1,12 @@
 -- constants
+local empty_tile = 0
 local dirt = 11
 local dirt_slope_right = 13
 local dirt_slope_left = 12
 local magma = 51
 local magma_slope_left = 9
 local magma_slope_right = 10
+local magma_layer_entrance = 52
 local grass = 43
 local grass_slope_right = 6
 local grass_slope_left = 7
@@ -59,25 +61,6 @@ local boss = {
 
 function is_damage_tile(tile)
     return tile == magma
-end
-
-function update_character()
-    -- (existing code)
-
-    -- check for collisions with enemies (e.g., the boss)
-    if character_collides_with_enemy() then
-        character.health = character.health - 1
-    end
-
-    -- check for collisions with damage-producing tiles
-    local x_tile = flr((character.x + 4) / 8)
-    local y_tile = flr((character.y + 6) / 8)
-    local tile = mget(x_tile, y_tile)
-
-    if is_damage_tile(tile) then
-        character.health = character.health - 1
-    end
-
 end
 
 function check_character_damage()
