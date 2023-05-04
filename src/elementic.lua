@@ -21,7 +21,7 @@ local frozen_stone = 15
 local snow = 25
 local corrupted_stone = 4
 local corrupted_stone_wall = 48
-
+local cloud = 44
 
 -- map dimensions
 local map_width = 128
@@ -150,7 +150,16 @@ function is_solid_tile(tile)
     return tile == stone or
             tile == magma or
             tile == grass or
-            tile == dirt
+            tile == dirt or
+            tile == frozen_stone or
+            tile == snow or
+            tile == coolled_magma or
+            tile == metal or
+            tile == galixy or
+            tile == mossy_stone or
+            tile == corrupted_stone or
+            tile == corrupted_stone_wall or
+            tile == cloud
 end
 
 function is_right_slope_tile(tile)
