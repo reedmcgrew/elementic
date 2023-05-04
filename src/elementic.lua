@@ -28,15 +28,23 @@ local map_width = 128
 local map_height = 16
 
 local character = {
-    x = 1*8, -- initial x position
-    y = 7*8, -- initial y position
-    speed = 1, -- movement speed
-    sprite = 3, -- sprite index
-    vy = 0, -- vertical velocity
-    gravity = 0.2, -- gravity strength
-    jump_strength = -2.5, -- jump strength (negative value to jump upwards)
+    x = 1*8,
+    y = 7*8,
+    speed = 1,
+    sprite = 3,
+    vy = 0,
+    gravity = 0.2,
+    jump_strength = -2.5,
     health = 5,
-    max_health = 5
+    max_health = 5,
+    invulnerable = false,
+    invulnerable_timer = 0,
+    invulnerability_duration = 2 * 30, -- 2 seconds in frames (60 frames per second)
+    input = {
+        left = 0,
+        right = 1,
+        jump = 4
+    }
 }
 
 local boss_start_position_x = 7*8
@@ -64,6 +72,11 @@ function is_damage_tile(tile)
 end
 
 function check_character_damage()
+    -- Return if character is invulnerable
+    if character.invulnerable then
+        return
+    end
+
     -- Check for collision with the boss
     local char_left_edge = character.x
     local char_right_edge = character.x + 7
@@ -75,11 +88,13 @@ function check_character_damage()
     local boss_top_edge = boss.y
     local boss_bottom_edge = boss.y + 7
 
+    local character_should_become_invulnerable = false -- Only become invulnerable if health is lost this cycle
     if char_right_edge >= boss_left_edge and char_left_edge <= boss_right_edge
             and char_bottom_edge >= boss_top_edge and char_top_edge <= boss_bottom_edge then
         -- Only decrease health if the character is not on top of the boss
         if not (char_bottom_edge == boss_top_edge) then
             character.health = character.health - 1
+            character_should_become_invulnerable = true
         end
     end
 
@@ -88,19 +103,23 @@ function check_character_damage()
     local y_tile = flr((character.y + 4) / 8)
     local tile = mget(x_tile, y_tile)
 
-    if tile == magma or tile == magma_layer_entrance then
+    if (tile == magma or tile == magma_layer_entrance) and character_should_become_invulnerable == false then
         character.health = character.health - 1
+        character_should_become_invulnerable = true
     end
 
-    -- If character health reaches zero, reset it to the max health (for now)
+    -- If character health reaches zero, reset it to the max health and reset the position
     if character.health <= 0 then
         character.health = character.max_health
+        character.x = 1 * 8
+        character.y = 7 * 8
+        character.vy = 0
     end
 
-
-    -- If character health reaches zero, reset it to the max health (for now)
-    if character.health <= 0 then
-        character.health = character.max_health
+    -- Make the character invulnerable after taking damage
+    if character_should_become_invulnerable then
+        character.invulnerable = true
+        character.invulnerable_timer = character.invulnerability_duration
     end
 end
 
@@ -169,26 +188,17 @@ function get_slope_y(tile, x)
     return slope_height
 end
 
-function update_character()
+function update_character_horizontal_movement()
     local new_x = character.x
-    local new_y = character.y
 
-    if btn(0) then -- left arrow key
+    if btn(character.input.left) then
         new_x = character.x - character.speed
     end
-    if btn(1) then -- right arrow key
+    if btn(character.input.right) then
         new_x = character.x + character.speed
     end
-    -- add jump input handling
-    if btnp(4) and character.vy == 0 then
-        character.vy = character.jump_strength
-    end
 
-    -- apply gravity
-    character.vy = character.vy + character.gravity
-    new_y = character.y + character.vy
-
-    -- check for horizontal collisions
+    -- Check for horizontal collisions
     local x_tile = flr((new_x + 4) / 8)
     local y_tile = flr((character.y + 6) / 8)
     local tile_left = mget(x_tile, y_tile)
@@ -197,8 +207,21 @@ function update_character()
     if not (is_solid_tile(tile_left) or is_solid_tile(tile_right)) then
         character.x = new_x
     end
+end
 
-    -- check for vertical collisions
+function update_character_vertical_movement()
+    local new_y = character.y
+
+    -- Add jump input handling
+    if btnp(character.input.jump) and character.vy == 0 then
+        character.vy = character.jump_strength
+    end
+
+    -- Apply gravity
+    character.vy = character.vy + character.gravity
+    new_y = character.y + character.vy
+
+    -- Check for vertical collisions
     local x_tile = flr((character.x + 4) / 8)
     local y_tile_bottom = flr((new_y + 7) / 8)
     local y_tile_top = flr((new_y + 6) / 8)
@@ -219,13 +242,47 @@ function update_character()
     end
 end
 
+-- Updated update_character function
+function update_character()
+    update_character_horizontal_movement()
+    update_character_vertical_movement()
+end
+
+-- Add this function to your game loop (_update function)
+function update_invulnerability()
+    if character.invulnerable then
+        character.invulnerable_timer = character.invulnerable_timer - 1
+        if character.invulnerable_timer <= 0 then
+            character.invulnerable = false
+            character.invulnerable_timer = 0
+        end
+    end
+end
+
 function update_camera()
     camera_x = character.x - 64
     camera_y = character.y - 64
 end
 
 function draw_character()
-    spr(character.sprite, character.x, character.y)
+    -- Only draw the character if it's not invulnerable or blinking
+    if not character.invulnerable or (character.invulnerable and (flr(time() * 8) % 2 == 0)) then
+        spr(character.sprite, character.x, character.y, 1, 1)
+    end
+end
+
+function draw_character_info()
+    local info_x = 2
+    local info_y = 10
+
+    print("Character Info:", info_x, info_y, 7)
+    print("X: " .. character.x, info_x, info_y + 8, 7)
+    print("Y: " .. character.y, info_x, info_y + 16, 7)
+    print("Speed: " .. character.speed, info_x, info_y + 24, 7)
+    print("Sprite: " .. character.sprite, info_x, info_y + 32, 7)
+    print("Vy: " .. character.vy, info_x, info_y + 40, 7)
+    print("Health: " .. character.health, info_x, info_y + 48, 7)
+    print("Invulnerable: " .. tostring(character.invulnerable), info_x, info_y + 56, 7)
 end
 
 function holding_pattern(boss)
@@ -352,6 +409,7 @@ function _draw()
 
     -- Draw the health meter without camera adjustments
     camera(0, 0)
+    draw_character_info() -- Add this line
     draw_health_meter()
 end
 
@@ -362,6 +420,7 @@ function _update()
     update_boss()
     check_boss_collision()
     check_character_damage()
+    update_invulnerability()
 end
 
 function _init()
