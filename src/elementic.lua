@@ -1,18 +1,25 @@
 -- constants
-local empty_tile = 0
 local dirt = 11
 local dirt_slope_right = 13
 local dirt_slope_left = 12
 local magma = 51
 local magma_slope_left = 9
 local magma_slope_right = 10
-local magma_layer_entrance = 52
 local grass = 43
 local grass_slope_right = 6
 local grass_slope_left = 7
 local stone = 8
 local stone_slope_right = 40
 local stone_slope_left = 41
+local coolled_magma = 7
+local metal = 24
+local galixy = 32
+local mossy_stone = 14
+local frozen_stone = 15
+local snow = 25
+local corrupted_stone = 4
+local corrupted_stone_wall = 48
+
 
 -- map dimensions
 local map_width = 128
@@ -25,7 +32,9 @@ local character = {
     sprite = 3, -- sprite index
     vy = 0, -- vertical velocity
     gravity = 0.2, -- gravity strength
-    jump_strength = -2.5 -- jump strength (negative value to jump upwards)
+    jump_strength = -2.5, -- jump strength (negative value to jump upwards)
+    health = 5,
+    max_health = 5
 }
 
 local boss_start_position_x = 7*8
@@ -47,6 +56,93 @@ local boss = {
     direction = 1, -- initial direction (1 for right, -1 for left)
     speed = 0.5 -- movement speed
 }
+
+function is_damage_tile(tile)
+    return tile == magma
+end
+
+function update_character()
+    -- (existing code)
+
+    -- check for collisions with enemies (e.g., the boss)
+    if character_collides_with_enemy() then
+        character.health = character.health - 1
+    end
+
+    -- check for collisions with damage-producing tiles
+    local x_tile = flr((character.x + 4) / 8)
+    local y_tile = flr((character.y + 6) / 8)
+    local tile = mget(x_tile, y_tile)
+
+    if is_damage_tile(tile) then
+        character.health = character.health - 1
+    end
+
+end
+
+function check_character_damage()
+    -- Check for collision with the boss
+    local char_left_edge = character.x
+    local char_right_edge = character.x + 7
+    local char_top_edge = character.y
+    local char_bottom_edge = character.y + 7
+
+    local boss_left_edge = boss.x
+    local boss_right_edge = boss.x + 7
+    local boss_top_edge = boss.y
+    local boss_bottom_edge = boss.y + 7
+
+    if char_right_edge >= boss_left_edge and char_left_edge <= boss_right_edge
+            and char_bottom_edge >= boss_top_edge and char_top_edge <= boss_bottom_edge then
+        -- Only decrease health if the character is not on top of the boss
+        if not (char_bottom_edge == boss_top_edge) then
+            character.health = character.health - 1
+        end
+    end
+
+    -- Check for collision with damage-producing tiles
+    local x_tile = flr((character.x + 4) / 8)
+    local y_tile = flr((character.y + 4) / 8)
+    local tile = mget(x_tile, y_tile)
+
+    if tile == magma or tile == magma_layer_entrance then
+        character.health = character.health - 1
+    end
+
+    -- If character health reaches zero, reset it to the max health (for now)
+    if character.health <= 0 then
+        character.health = character.max_health
+    end
+
+
+    -- If character health reaches zero, reset it to the max health (for now)
+    if character.health <= 0 then
+        character.health = character.max_health
+    end
+end
+
+
+function character_collides_with_enemy()
+    -- check if the character collides with the boss's side or bottom
+    return not boss.defeated and
+            character.x + 8 >= boss.x and character.x <= boss.x + 7 and
+            character.y + 8 >= boss.y and character.y <= boss.y + 7
+end
+
+-- create a function to draw the health meter
+function draw_health_meter()
+    local meter_width = 5 * character.max_health
+    local meter_height = 5
+    local meter_x = 127 * 8 - meter_width
+    local meter_y = 0
+
+    -- draw the background (empty health meter)
+    rectfill(meter_x, meter_y, meter_x + meter_width, meter_y + meter_height, 1)
+
+    -- draw the filled part of the health meter (remaining health)
+    local fill_width = meter_width * character.health / character.max_health
+    rectfill(meter_x, meter_y, meter_x + fill_width, meter_y + meter_height, 8)
+end
 
 function is_solid_tile(tile)
     return tile == stone or
@@ -245,20 +341,44 @@ function draw_boss()
     end
 end
 
+-- Create a function to draw the health meter
+function draw_health_meter()
+    local meter_width = 5 * character.max_health
+    local meter_height = 5
+    local meter_x = (127 - character.max_health * 5)
+    local meter_y = 0
+
+    -- Draw the background (empty health meter)
+    rectfill(meter_x, meter_y, meter_x + meter_width, meter_y + meter_height, 1)
+
+    -- Draw the filled part of the health meter (remaining health)
+    local fill_width = meter_width * character.health / character.max_health
+    rectfill(meter_x, meter_y, meter_x + fill_width, meter_y + meter_height, 8)
+end
+
+
 -- draw the map in the _draw() function
 function _draw()
     cls()
+
+    -- Draw the map, character, and boss with the camera
     camera(camera_x, camera_y)
     map(0, 0, 0, 0, map_width, map_height)
     draw_character()
     draw_boss()
+
+    -- Draw the health meter without camera adjustments
+    camera(0, 0)
+    draw_health_meter()
 end
+
 
 function _update()
     update_character()
     update_camera()
     update_boss()
     check_boss_collision()
+    check_character_damage()
 end
 
 function _init()
