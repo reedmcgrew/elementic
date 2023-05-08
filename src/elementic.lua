@@ -2,18 +2,10 @@
 --- Terrain Logic
 ---
 local dirt = 11
-local dirt_slope_right = 13
-local dirt_slope_left = 12
 local magma = 51
-local magma_slope_left = 9
-local magma_slope_right = 10
 local magma_layer_entrance = 52
 local grass = 43
-local grass_slope_right = 6
-local grass_slope_left = 7
 local stone = 8
-local stone_slope_right = 40
-local stone_slope_left = 41
 local coolled_magma = 7
 local metal = 24
 local galixy = 32
@@ -46,40 +38,6 @@ function is_solid_tile(tile)
             tile == corrupted_stone or
             tile == corrupted_stone_wall or
             tile == cloud
-end
-
-function is_right_slope_tile(tile)
-    return tile == stone_slope_right or
-            tile == magma_slope_right or
-            tile == grass_slope_right or
-            tile == dirt_slope_right
-end
-
-function is_left_slope_tile(tile)
-    return tile == stone_slope_left or
-            tile == magma_slope_left or
-            tile == grass_slope_left or
-            tile == dirt_slope_left
-end
-
-function get_slope_collision(tile, x)
-    local slope_height = 0
-    if tile == dirt_slope_right or tile == magma_slope_right or tile == grass_slope_right or tile == stone_slope_right then
-        slope_height = (x % 8)
-    elseif tile == dirt_slope_left or tile == magma_slope_left or tile == grass_slope_left or tile == stone_slope_left then
-        slope_height = 8 - (x % 8)
-    end
-    return slope_height
-end
-
-function get_slope_y(tile, x)
-    local slope_height = 0
-    if is_right_slope_tile(tile) then
-        slope_height = 0.5 * (x % 8)
-    elseif is_left_slope_tile(tile) then
-        slope_height = -0.5 * (x % 8) + 8
-    end
-    return slope_height
 end
 
 ---
@@ -155,13 +113,6 @@ function update_character_vertical_movement(character)
     if is_solid_tile(tile_bottom) or is_solid_tile(tile_top) then
         character.vy = 0
     else
-        local slope_bottom_y = get_slope_y(tile_bottom, character.x + 4)
-        local slope_top_y = get_slope_y(tile_top, character.x + 4)
-
-        if slope_bottom_y > 0 or slope_top_y > 0 then
-            new_y = y_tile_bottom * 8 - slope_bottom_y - 7
-            character.vy = 0
-        end
         character.y = new_y
     end
 end
