@@ -363,8 +363,7 @@ function _draw()
     camera(0, 0)
     draw_health_meter(character)
 
-    -- Draw debug info
-    draw_character_info(character)
+    -- draw_character_info(character)
 end
 
 function draw_boss(boss)
@@ -422,7 +421,6 @@ function _update()
     check_character_damage(character, boss)
     handle_character_invulnerability(character)
 end
-
 
 ---
 --- Initialize Game State
