@@ -1,3 +1,5 @@
+local debugInfoOn = false
+
 ---
 --- Terrain Logic
 ---
@@ -41,21 +43,34 @@ function is_solid_tile(tile)
 end
 
 ---
+--- Other Constants
+---
+local METER_COLOR = {
+    GREEN = 11,
+    RED = 8
+}
+
+---
 --- Game State
 ---
 local character = {
+    -- Standard entity state
     x = 1*8,
     y = 7*8,
     speed = 1,
     sprite = 3,
-    vy = 0,
-    gravity = 0.2,
-    jump_strength = -2.5,
     health = 5,
     max_health = 5,
     invulnerable = false,
     invulnerable_timer = 0,
     invulnerability_duration = 2 * 30, -- 2 seconds in frames (60 frames per second)
+
+    -- Main character jump mechanics settings
+    vy = 0,
+    gravity = 0.2,
+    jump_strength = -2.5,
+
+    -- Inputs
     input = {
         left = 0,
         right = 1,
@@ -63,24 +78,26 @@ local character = {
     }
 }
 
-local boss_start_position_x = 7*8
-local boss_start_position_y = 9*8
-local boss_angry_sprite = 60
-local boss_impaired_sprite = 17
-local boss = {
-    x = boss_start_position_x, -- initial x position
-    y = boss_start_position_y, -- initial y position
-    sprite = boss_angry_sprite, -- start with angry sprite
-    health = 3,
+local lava_boss_start_x = 7*8
+local lava_boss_start_y = 9*8
+local lava_boss = {
+    -- Standard entity state
+    x = lava_boss_start_x, -- initial x position
+    y = lava_boss_start_y, -- initial y position
+    speed = 0.5, -- movement speed
+    sprite = 60,
+    health = 3, -- initial total health
+    max_health = 3,
     invulnerable = false,
+    invulnerable_timer = 0,
+    invulnerability_duration = 2 * 30,
+
+    -- Lava-boss-specific state
     defeated = false,
     state = "holding_pattern",
     holding_pattern_width = 8*8,
     earth_shake_timer = 0,
-    vulnerability_timer = 0,
-    invulnerability_timer = 0,
-    direction = 1, -- initial direction (1 for right, -1 for left)
-    speed = 0.5 -- movement speed
+    direction = 1 -- initial direction (1 for right, -1 for left)
 }
 
 ---
@@ -138,12 +155,12 @@ function update_character_horizontal_movement(character)
     end
 end
 
-function handle_character_invulnerability(character)
-    if character.invulnerable then
-        character.invulnerable_timer = character.invulnerable_timer - 1
-        if character.invulnerable_timer <= 0 then
-            character.invulnerable = false
-            character.invulnerable_timer = 0
+function handle_entity_invulnerability(entity)
+    if entity.invulnerable then
+        entity.invulnerable_timer = entity.invulnerable_timer - 1
+        if entity.invulnerable_timer <= 0 then
+            entity.invulnerable = false
+            entity.invulnerable_timer = 0
         end
     end
 end
@@ -157,14 +174,14 @@ function update_boss(boss)
     elseif boss.state == "earth_shake" then
         earth_shake(boss)
     elseif boss.state == "vulnerability" then
-        handle_boss_invulnerability(boss)
+        handle_entity_invulnerability(boss)
     end
 end
 
 function holding_pattern(boss)
     -- calculate the horizontal movement range
-    local left_bound = boss_start_position_x
-    local right_bound = boss_start_position_x + boss.holding_pattern_width
+    local left_bound = lava_boss_start_x
+    local right_bound = lava_boss_start_x + boss.holding_pattern_width
 
     -- move the boss horizontally
     if boss.x >= right_bound then
@@ -185,7 +202,7 @@ end
 
 function earth_shake(boss)
     -- move the boss down to the ground.
-    local target_y = map_height * 8 - 8
+    local target_y = map_height * 8 - 8*5
     if boss.y < target_y then
         boss.y = boss.y + 2
     else
@@ -193,23 +210,9 @@ function earth_shake(boss)
         boss.earth_shake_timer = boss.earth_shake_timer + 1
         if boss.earth_shake_timer >= 120 then -- 2 seconds * 60 frames per second
             boss.earth_shake_timer = 0
-            boss.y = boss_start_position_y
+            boss.y = lava_boss_start_y
             boss.state = "holding_pattern"
         end
-    end
-end
-
-function handle_boss_invulnerability(boss)
-    -- change the boss's sprite to the frowny face.
-    boss.sprite = boss_impaired_sprite
-
-    -- increment the vulnerability_timer and check if the invulnerability period is over.
-    boss.vulnerability_timer = boss.vulnerability_timer + 1
-    if boss.vulnerability_timer >= 180 then -- 3 seconds * 60 frames per second
-        boss.vulnerability_timer = 0
-        boss.invulnerable = false
-        boss.sprite = boss_angry_sprite
-        boss.state = "holding_pattern"
     end
 end
 
@@ -221,19 +224,22 @@ function handle_boss_collision(character, boss)
         return
     end
 
-    local char_pixel_x = character.x + 5
+    local char_pixel_x = character.x + 4
     local char_bottom_edge = character.y + 8
 
     local boss_left_edge = boss.x
     local boss_right_edge = boss.x + 7
     local boss_top_edge = boss.y
 
-    if char_bottom_edge == boss_top_edge
+    if (char_bottom_edge < boss_top_edge and char_bottom_edge > boss_top_edge - 4)
             and char_pixel_x >= boss_left_edge
             and char_pixel_x <= boss_right_edge then
         boss.health = boss.health - 1
         boss.invulnerable = true
-        boss.state = "vulnerability"
+        boss.invulnerable_timer = lava_boss.invulnerability_duration
+
+        -- Bounce the character off the boss's head.
+        character.vy = character.jump_strength
 
         if boss.health <= 0 then
             boss.defeated = true
@@ -259,7 +265,7 @@ function check_character_damage(character, boss)
     local boss_bottom_edge = boss.y + 7
 
     local character_should_become_invulnerable = false -- Only become invulnerable if health is lost this cycle
-    if char_right_edge >= boss_left_edge and char_left_edge <= boss_right_edge
+    if not boss.defeated and char_right_edge >= boss_left_edge and char_left_edge <= boss_right_edge
             and char_bottom_edge >= boss_top_edge and char_top_edge <= boss_bottom_edge then
         -- Only decrease health if the character is not on top of the boss
         if not (char_bottom_edge == boss_top_edge) then
@@ -296,66 +302,79 @@ end
 ---
 ---  Main Drawing Logic
 ---
-function update_camera(character)
-    camera_x = character.x - 64
-    camera_y = character.y - 64
-end
-
 function _draw()
     cls()
-
-    -- Draw the map, character, and boss with the camera
-    camera(camera_x, camera_y)
-    map(0, 0, 0, 0, map_width, map_height)
+    draw_map()
     draw_character(character)
-    draw_boss(boss)
+    draw_boss(lava_boss, character)
 
-    -- Draw the health meter without camera adjustments
-    camera(0, 0)
-    draw_health_meter(character)
-
-    -- draw_character_info(character)
+    if debugInfoOn then
+        draw_entity_debug_info(character)
+    end
 end
 
-function draw_boss(boss)
-    if not boss.defeated then
-        spr(boss.sprite, boss.x, boss.y)
-    end
+function update_character_camera(character)
+    character_cam_x = character.x - 64
+    character_cam_y = character.y - 64
+end
+
+function draw_map()
+    -- Draw map using the camera wrt the character.
+    camera(character_cam_x, character_cam_y)
+    map(0, 0, 0, 0, map_width, map_height)
 end
 
 function draw_character(character)
-    -- Only draw the character if it's not invulnerable or blinking
-    if not character.invulnerable or (character.invulnerable and (flr(time() * 8) % 2 == 0)) then
-        spr(character.sprite, character.x, character.y, 1, 1)
+    draw_entity(character)
+    draw_health_meter(character, 0, METER_COLOR.GREEN)
+end
+
+function draw_boss(boss, character)
+    if not boss.defeated and abs(character.x - boss.x) <= 9*8 and character.y >= lava_boss_start_y then
+        draw_entity(boss)
+        draw_health_meter(boss, 1, METER_COLOR.RED)
     end
 end
 
-function draw_character_info(character)
-    local info_x = 2
-    local info_y = 10
+function draw_entity(entity)
+    -- Don't draw the entity if it is defeated
+    if entity.defeated ~= nil and entity.defeated == true then
+        return
+    end
 
-    print("Character Info:", info_x, info_y, 7)
-    print("X: " .. character.x, info_x, info_y + 8, 7)
-    print("Y: " .. character.y, info_x, info_y + 16, 7)
-    print("Speed: " .. character.speed, info_x, info_y + 24, 7)
-    print("Sprite: " .. character.sprite, info_x, info_y + 32, 7)
-    print("Vy: " .. character.vy, info_x, info_y + 40, 7)
-    print("Health: " .. character.health, info_x, info_y + 48, 7)
-    print("Invulnerable: " .. tostring(character.invulnerable), info_x, info_y + 56, 7)
+    -- Draw entity using the camera wrt the main character.
+    camera(character_cam_x, character_cam_y)
+
+    -- Only draw the entity (character or boss) if it's not invulnerable or blinking
+    if not entity.invulnerable or (entity.invulnerable and (flr(time() * 8) % 2 == 0)) then
+        spr(entity.sprite, entity.x, entity.y, 1, 1)
+    end
 end
 
-function draw_health_meter(character)
-    local meter_width = 5 * character.max_health
+function draw_entity_debug_info(entity)
+    local y_offset = 8
+    local line = 0
+    for key, value in pairs(entity) do
+        print(key .. ": " .. tostring(value), 1, y_offset * line, 7)
+        line = line + 1
+    end
+end
+
+function draw_health_meter(entity, line, meter_color)
+    -- Draw the health meter without camera adjustments
+    camera(0, 0)
+    local y_offset = 8
+    local meter_width = 5 * entity.max_health
     local meter_height = 5
-    local meter_x = (127 - character.max_health * 5)
-    local meter_y = 0
+    local meter_x = (127 - entity.max_health * 5)
+    local meter_y = y_offset*line
 
     -- Draw the background (empty health meter)
     rectfill(meter_x, meter_y, meter_x + meter_width, meter_y + meter_height, 1)
 
     -- Draw the filled part of the health meter (remaining health)
-    local fill_width = meter_width * character.health / character.max_health
-    rectfill(meter_x, meter_y, meter_x + fill_width, meter_y + meter_height, 8)
+    local fill_width = meter_width * entity.health / entity.max_health
+    rectfill(meter_x, meter_y, meter_x + fill_width, meter_y + meter_height, meter_color)
 end
 
 ---
@@ -364,13 +383,14 @@ end
 function _update()
     -- Movement and Collision Detection
     update_character(character)
-    update_camera(character)
-    update_boss(boss)
+    update_character_camera(character)
+    update_boss(lava_boss)
 
     -- Damage Handling
-    handle_boss_collision(character, boss)
-    check_character_damage(character, boss)
-    handle_character_invulnerability(character)
+    handle_boss_collision(character, lava_boss)
+    check_character_damage(character, lava_boss)
+    handle_entity_invulnerability(character)
+    handle_entity_invulnerability(lava_boss)
 end
 
 ---
