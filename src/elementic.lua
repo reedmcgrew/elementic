@@ -70,6 +70,11 @@ local character = {
     gravity = 0.2,
     jump_strength = -2.5,
 
+    -- Double Jump
+    double_jump_enabled = false,
+    jumps = 0,
+    max_jumps = 2,  -- The first jump plus one more
+
     -- Inputs
     input = {
         left = 0,
