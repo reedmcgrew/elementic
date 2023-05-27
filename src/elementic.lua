@@ -6,9 +6,9 @@ local debugInfoOn = false
 local dirt = 11
 local magma = 51
 local magma_layer_entrance = 52
-local grass = 43
+local grass = 7
+local poisonous_grass = 43
 local stone = 8
-local coolled_magma = 7
 local metal = 24
 local galixy = 32
 local mossy_stone = 14
@@ -22,10 +22,6 @@ local cloud = 44
 local map_width = 128
 local map_height = 16
 
-function is_damage_tile(tile)
-    return tile == magma
-end
-
 function is_solid_tile(tile)
     return tile == stone or
             tile == magma or
@@ -33,13 +29,19 @@ function is_solid_tile(tile)
             tile == dirt or
             tile == frozen_stone or
             tile == snow or
-            tile == coolled_magma or
             tile == metal or
             tile == galixy or
             tile == mossy_stone or
             tile == corrupted_stone or
             tile == corrupted_stone_wall or
-            tile == cloud
+            tile == cloud or
+            tile == poisonous_grass
+end
+
+function is_damage_producing_tile(tile)
+    return tile == magma or
+            tile == magma_layer_entrance or
+            tile == poisonous_grass
 end
 
 ---
@@ -285,12 +287,12 @@ function check_character_damage(character, boss)
         end
     end
 
-    -- Check for collision with damage-producing tiles
+    -- Check for collision with damage-producing flooring
     local x_tile = flr((character.x + 4) / 8)
-    local y_tile = flr((character.y + 4) / 8)
+    local y_tile = flr(character.y / 8) + 1 -- Check the tile below
     local tile = mget(x_tile, y_tile)
 
-    if (tile == magma or tile == magma_layer_entrance) and character_should_become_invulnerable == false then
+    if is_damage_producing_tile(tile) and character_should_become_invulnerable == false then
         character.health = character.health - 1
         character_should_become_invulnerable = true
     end
