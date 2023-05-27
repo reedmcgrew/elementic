@@ -117,8 +117,12 @@ function update_character_vertical_movement(character)
     local new_y = character.y
 
     -- Add jump input handling
-    if btnp(character.input.jump) and character.vy == 0 then
-        character.vy = character.jump_strength
+    if btnp(character.input.jump) then
+        -- If we're on the ground or have double jump enabled and haven't used up all our jumps
+        if character.vy == 0 or (character.double_jump_enabled and character.jumps < character.max_jumps) then
+            character.vy = character.jump_strength
+            character.jumps = character.jumps + 1
+        end
     end
 
     -- Apply gravity
@@ -134,10 +138,12 @@ function update_character_vertical_movement(character)
 
     if is_solid_tile(tile_bottom) or is_solid_tile(tile_top) then
         character.vy = 0
+        character.jumps = 0  -- Reset the jump counter when we touch the ground
     else
         character.y = new_y
     end
 end
+
 
 function update_character_horizontal_movement(character)
     local new_x = character.x
